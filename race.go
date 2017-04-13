@@ -1,12 +1,12 @@
 package main
 
 import (
-	"net"
-	"log"
-	"os"
-	"flag"
-	"time"
 	"errors"
+	"flag"
+	"log"
+	"net"
+	"os"
+	"time"
 )
 
 const road_width = 40
@@ -17,7 +17,7 @@ type Config struct {
 	AcidPath string
 }
 
-func getAcid(conf *Config, fileName string ) ([]byte, error) {
+func getAcid(conf *Config, fileName string) ([]byte, error) {
 	gameOver := false
 	fileStat, err := os.Stat(conf.AcidPath + "/" + fileName)
 	if err != nil {
@@ -30,7 +30,7 @@ func getAcid(conf *Config, fileName string ) ([]byte, error) {
 	}
 
 	acid := make([]byte, fileStat.Size())
-	f, err := os.OpenFile(conf.AcidPath + "/" + fileName, os.O_RDONLY, os.ModePerm)
+	f, err := os.OpenFile(conf.AcidPath+"/"+fileName, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		conf.Log.Printf("Error while opening %s: %v\n", fileName, err)
 		os.Exit(1)
@@ -82,30 +82,28 @@ func handleRequest(conf *Config, conn net.Conn) {
 			return
 		}
 
-
 		data := make([]byte, len(roadStraight))
 		copy(data, roadStraight)
 
 		// Mask car to straight road
-		for line:=0; line < 7 ;  line++ {
+		for line := 0; line < 7; line++ {
 			copy(data[((12+line)*road_width+position):((12+line)*road_width+position)+15], car[line*car_width:line*car_width+15])
 		}
 		conn.Write(data)
-		time.Sleep(200*time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 		conn.Write(clear)
 
 		updatePosition(conn, &position)
 		copy(data, roadReverse)
 
 		// Mask car to reverse road
-		for line:=0; line < 7 ;  line++ {
+		for line := 0; line < 7; line++ {
 			copy(data[((12+line)*road_width+position):((12+line)*road_width+position)+15], car[line*car_width:line*car_width+15])
 		}
 		conn.Write(data)
-		time.Sleep(200*time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 		conn.Write(clear)
 	}
-
 
 }
 
