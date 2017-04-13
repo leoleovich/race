@@ -1,32 +1,60 @@
 package main
 
 import (
-	"errors"
 	"flag"
+	"io"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"time"
 )
 
 const road_width = 40
+const road_lenght = 20
 const car_width = 16
+const car_lenght = 7
 
 type Config struct {
 	Log      *log.Logger
 	AcidPath string
 }
 
-func getAcid(conf *Config, fileName string) ([]byte, error) {
-	gameOver := false
+type Point struct {
+	X, Y int
+}
+
+func generateRoad(reverse bool) []byte {
+	road := make([]byte, road_width*road_lenght)
+	midline := reverse
+	for row := 0; row < road_lenght; row++ {
+		for column := 0; column < road_width; column++ {
+			var symbol byte
+			if column == 0 || column == road_width-2 {
+				symbol = byte('|')
+			} else if column == road_width-1 {
+				symbol = byte('\n')
+			} else if column == road_width/2-1 {
+				if midline {
+					symbol = byte('|')
+				} else {
+					symbol = byte(' ')
+				}
+				midline = !midline
+			} else {
+				symbol = byte(' ')
+			}
+			road[row*road_width+column] = symbol
+		}
+
+	}
+	return road
+}
+
+func getAcid(conf *Config, fileName string) []byte {
 	fileStat, err := os.Stat(conf.AcidPath + "/" + fileName)
 	if err != nil {
-		gameOver = true
-		fileName = "game_over.txt"
-		fileStat, err = os.Stat(conf.AcidPath + "/" + fileName)
-		if err != nil {
-			conf.Log.Printf("Acid %s does not exist: %v\n", fileName, err)
-		}
+		conf.Log.Printf("Acid %s does not exist: %v\n", fileName, err)
 	}
 
 	acid := make([]byte, fileStat.Size())
@@ -39,72 +67,89 @@ func getAcid(conf *Config, fileName string) ([]byte, error) {
 
 	f.Read(acid)
 
-	if gameOver {
-		return acid, errors.New("Game over")
-	} else {
-		return acid, nil
-	}
+	return acid
 }
 
-func updatePosition(conn net.Conn, position *int) {
-	direction := make([]byte, 1)
+func updatePosition(conn net.Conn, position *Point) {
+	for {
+		direction := make([]byte, 1)
 
-	conn.SetReadDeadline(time.Now().Add(time.Duration(10) * time.Millisecond))
-	conn.Read(direction)
+		conn.SetReadDeadline(time.Now().Add(time.Duration(50) * time.Millisecond))
+		_, err := conn.Read(direction)
 
-	switch direction[0] {
-	case 68:
-		// Left
-		*position--
-	case 67:
-		// Right
-		*position++
+		if err == io.EOF {
+			return
+		}
+
+		switch direction[0] {
+		case 68:
+			// Left
+			position.X--
+		case 67:
+			// Right
+			position.X++
+		case 65:
+			// Up
+			position.Y--
+		case 66:
+			// Down
+			position.Y++
+		}
 	}
 }
 
 func handleRequest(conf *Config, conn net.Conn) {
 	defer conn.Close()
 
-	position := 12
+	carPosition := Point{12, 12}
+	bombPosition := Point{road_width, road_lenght}
 
-	car, _ := getAcid(conf, "car.txt")
-	roadStraight, _ := getAcid(conf, "road_straight.txt")
-	roadReverse, _ := getAcid(conf, "road_reverse.txt")
-	clear, _ := getAcid(conf, "clear.txt")
-	gameOver, _ := getAcid(conf, "game_over.txt")
+	roads := [][]byte{generateRoad(false), generateRoad(true)}
+	car := getAcid(conf, "car.txt")
+	clear := getAcid(conf, "clear.txt")
+	gameOver := getAcid(conf, "game_over.txt")
 
+	go updatePosition(conn, &carPosition)
 	for {
-
-		updatePosition(conn, &position)
-		conf.Log.Println(position)
-		if position < 1 || position > 23 {
+		if carPosition.X < 1 || carPosition.X > 23 || carPosition.Y < 1 || carPosition.Y > 12 {
+			// Hit the wall
+			conn.Write(gameOver)
+			return
+		} else if carPosition.X <= bombPosition.X && carPosition.X+car_width-1 > bombPosition.X &&
+			carPosition.Y < bombPosition.Y && carPosition.Y+car_lenght-1 > bombPosition.Y {
+			// Hit the bomb
 			conn.Write(gameOver)
 			return
 		}
 
-		data := make([]byte, len(roadStraight))
-		copy(data, roadStraight)
+		for i := range roads {
+			data := make([]byte, len(roads[i]))
+			copy(data, roads[i])
 
-		// Mask car to straight road
-		for line := 0; line < 7; line++ {
-			copy(data[((12+line)*road_width+position):((12+line)*road_width+position)+15], car[line*car_width:line*car_width+15])
+			// Applying the bomb
+			if bombPosition.Y < road_lenght {
+				data[bombPosition.Y*road_width+bombPosition.X] = byte('X')
+				bombPosition.Y++
+			} else if rand.Int()%3 == 0 {
+				bombPosition.X, bombPosition.Y = rand.Intn(road_width-3) + 1, 0
+			}
+
+			// Applying the car
+			for line := 0; line < 7; line++ {
+				copy(data[((carPosition.Y+line)*road_width+carPosition.X):((carPosition.Y+line)*road_width+carPosition.X)+15], car[line*car_width:line*car_width+15])
+			}
+
+			_, err := conn.Write(data)
+			if err != nil {
+				return
+			}
+			time.Sleep(200 * time.Millisecond)
+			_, err = conn.Write(clear)
+			if err != nil {
+				return
+			}
 		}
-		conn.Write(data)
-		time.Sleep(200 * time.Millisecond)
-		conn.Write(clear)
-
-		updatePosition(conn, &position)
-		copy(data, roadReverse)
-
-		// Mask car to reverse road
-		for line := 0; line < 7; line++ {
-			copy(data[((12+line)*road_width+position):((12+line)*road_width+position)+15], car[line*car_width:line*car_width+15])
-		}
-		conn.Write(data)
-		time.Sleep(200 * time.Millisecond)
-		conn.Write(clear)
 	}
-
 }
 
 func main() {
