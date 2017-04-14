@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"io"
 	"log"
 	"math/rand"
 	"net"
@@ -74,10 +73,8 @@ func updatePosition(conn net.Conn, position *Point) {
 	for {
 		direction := make([]byte, 1)
 
-		conn.SetReadDeadline(time.Now().Add(time.Duration(50) * time.Millisecond))
 		_, err := conn.Read(direction)
-
-		if err == io.EOF {
+		if err != nil {
 			return
 		}
 
@@ -131,7 +128,7 @@ func handleRequest(conf *Config, conn net.Conn) {
 				data[bombPosition.Y*road_width+bombPosition.X] = byte('X')
 				bombPosition.Y++
 			} else if rand.Int()%3 == 0 {
-				bombPosition.X, bombPosition.Y = rand.Intn(road_width-3) + 1, 0
+				bombPosition.X, bombPosition.Y = rand.Intn(road_width-3)+1, 0
 			}
 
 			// Applying the car
