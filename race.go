@@ -33,8 +33,8 @@ type GameData struct {
 	CarPosition, bombPosition Point
 	Roads                     [][]byte
 	Car, Clear, GameOver      []byte
-	Score		          int64
-	BombFactor                int
+	Score                     int64
+	BombFactor, Speed         int
 }
 
 func generateRoad(reverse bool) []byte {
@@ -109,12 +109,12 @@ func updatePosition(conn net.Conn, position *Point) {
 	}
 }
 
-func updateScore(Score *int64) {
+func updateScore(gameData *GameData) {
 	for {
-		*Score++
-		time.Sleep(200 * time.Millisecond)
+		gameData.Score++
+		time.Sleep(time.Duration(gameData.Speed) * time.Millisecond)
 	}
-	
+
 }
 
 func readName(conf *Config, conn net.Conn) (string, error) {
@@ -137,7 +137,6 @@ func readName(conf *Config, conn net.Conn) (string, error) {
 }
 
 func gameOver(conf *Config, conn net.Conn, gameData *GameData) {
-	diff := fmt.Sprintf("%d", gameData.Score)
 
 	//Name
 	for i, char := range []byte(gameData.PlayerName) {
@@ -146,8 +145,9 @@ func gameOver(conf *Config, conn net.Conn, gameData *GameData) {
 	//:
 	gameData.GameOver[result_width/2] = byte(':')
 	// Score
-	for i := range diff {
-		gameData.GameOver[result_width-len(diff)+i] = byte(diff[i])
+	scoreStr := fmt.Sprintf("%d", gameData.Score)
+	for i := range scoreStr {
+		gameData.GameOver[result_width-len(scoreStr)+i] = byte(scoreStr[i])
 
 	}
 	conn.Write(gameData.Clear)
@@ -174,7 +174,7 @@ func handleRequest(conf *Config, conn net.Conn) {
 		return
 	}
 	gameData.PlayerName = name
-	go updateScore(&gameData.Score)
+	go updateScore(&gameData)
 	go updatePosition(conn, &gameData.CarPosition)
 
 	for {
@@ -200,10 +200,14 @@ func handleRequest(conf *Config, conn net.Conn) {
 			}
 
 			// Checking and updating complexity
-			if gameData.Score > 100 && gameData.Score < 500 {
+			if gameData.Score > 100 && gameData.Score < 200 {
 				gameData.BombFactor = 2
-			} else if gameData.Score >= 500 {
+				gameData.Speed = 150
+			} else if gameData.Score >= 200 && gameData.Score < 400 {
 				gameData.BombFactor = 1
+				gameData.Speed = 100
+			} else if gameData.Score >= 400 {
+				gameData.Speed = 50
 			}
 
 			// Applying the bomb
@@ -219,11 +223,18 @@ func handleRequest(conf *Config, conn net.Conn) {
 				copy(data[((gameData.CarPosition.Y+line)*road_width+gameData.CarPosition.X):((gameData.CarPosition.Y+line)*road_width+gameData.CarPosition.X)+15], gameData.Car[line*Car_width:line*Car_width+15])
 			}
 
+			// Applying the score
+			scoreStr := fmt.Sprintf("%d", gameData.Score)
+			for i := range scoreStr {
+				data[i] = byte(scoreStr[i])
+
+			}
+
 			_, err = conn.Write(data)
 			if err != nil {
 				return
 			}
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(time.Duration(gameData.Speed) * time.Millisecond)
 		}
 	}
 }
