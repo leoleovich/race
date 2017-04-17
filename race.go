@@ -15,8 +15,8 @@ import (
 
 const road_width = 40
 const road_lenght = 20
-const car_width = 16
-const car_lenght = 7
+const Car_width = 16
+const Car_lenght = 7
 const result_width = 75
 
 type Config struct {
@@ -29,11 +29,12 @@ type Point struct {
 }
 
 type GameData struct {
-	playerName                string
-	carPosition, bombPosition Point
-	roads                     [][]byte
-	car, clear, gameOver      []byte
-	gameStarted               int64
+	PlayerName                string
+	CarPosition, bombPosition Point
+	Roads                     [][]byte
+	Car, Clear, GameOver      []byte
+	Score		          int64
+	BombFactor                int
 }
 
 func generateRoad(reverse bool) []byte {
@@ -108,6 +109,14 @@ func updatePosition(conn net.Conn, position *Point) {
 	}
 }
 
+func updateScore(Score *int64) {
+	for {
+		*Score++
+		time.Sleep(200 * time.Millisecond)
+	}
+	
+}
+
 func readName(conf *Config, conn net.Conn) (string, error) {
 	conn.Write([]byte("Enter your name:"))
 	io := bufio.NewReader(conn)
@@ -128,21 +137,21 @@ func readName(conf *Config, conn net.Conn) (string, error) {
 }
 
 func gameOver(conf *Config, conn net.Conn, gameData *GameData) {
-	diff := fmt.Sprintf("%d", time.Now().Unix()-gameData.gameStarted)
+	diff := fmt.Sprintf("%d", gameData.Score)
 
 	//Name
-	for i, char := range []byte(gameData.playerName) {
-		gameData.gameOver[i] = char
+	for i, char := range []byte(gameData.PlayerName) {
+		gameData.GameOver[i] = char
 	}
 	//:
-	gameData.gameOver[result_width/2] = byte(':')
+	gameData.GameOver[result_width/2] = byte(':')
 	// Score
 	for i := range diff {
-		gameData.gameOver[result_width-len(diff)+i] = byte(diff[i])
+		gameData.GameOver[result_width-len(diff)+i] = byte(diff[i])
 
 	}
-	conn.Write(gameData.clear)
-	conn.Write(gameData.gameOver)
+	conn.Write(gameData.Clear)
+	conn.Write(gameData.GameOver)
 
 }
 
@@ -150,56 +159,64 @@ func handleRequest(conf *Config, conn net.Conn) {
 	defer conn.Close()
 
 	gameData := GameData{}
-	gameData.carPosition = Point{12, 12}
+	gameData.CarPosition = Point{12, 12}
 	gameData.bombPosition = Point{road_width, road_lenght}
+	gameData.BombFactor = 3
+	gameData.Speed = 200
 
-	gameData.roads = [][]byte{generateRoad(false), generateRoad(true)}
-	gameData.car = getAcid(conf, "car.txt")
-	gameData.clear = getAcid(conf, "clear.txt")
-	gameData.gameOver = getAcid(conf, "game_over.txt")
+	gameData.Roads = [][]byte{generateRoad(false), generateRoad(true)}
+	gameData.Car = getAcid(conf, "Car.txt")
+	gameData.Clear = getAcid(conf, "Clear.txt")
+	gameData.GameOver = getAcid(conf, "game_over.txt")
 
 	name, err := readName(conf, conn)
 	if err != nil {
 		return
 	}
-	gameData.playerName = name
-	gameData.gameStarted = time.Now().Unix()
-
-	go updatePosition(conn, &gameData.carPosition)
+	gameData.PlayerName = name
+	go updateScore(&gameData.Score)
+	go updatePosition(conn, &gameData.CarPosition)
 
 	for {
-		if gameData.carPosition.X < 1 || gameData.carPosition.X > 23 || gameData.carPosition.Y < 1 || gameData.carPosition.Y > 12 {
+		if gameData.CarPosition.X < 1 || gameData.CarPosition.X > 23 || gameData.CarPosition.Y < 1 || gameData.CarPosition.Y > 12 {
 			// Hit the wall
 			gameOver(conf, conn, &gameData)
 			return
-		} else if gameData.carPosition.X <= gameData.bombPosition.X && gameData.carPosition.X+car_width-1 > gameData.bombPosition.X &&
-			gameData.carPosition.Y < gameData.bombPosition.Y && gameData.carPosition.Y+car_lenght-1 > gameData.bombPosition.Y {
+		} else if gameData.CarPosition.X <= gameData.bombPosition.X && gameData.CarPosition.X+Car_width-1 > gameData.bombPosition.X &&
+			gameData.CarPosition.Y < gameData.bombPosition.Y && gameData.CarPosition.Y+Car_lenght-1 > gameData.bombPosition.Y {
 			// Hit the bomb
 			gameOver(conf, conn, &gameData)
 			return
 		}
 
-		for i := range gameData.roads {
-			data := make([]byte, len(gameData.roads[i]))
-			copy(data, gameData.roads[i])
+		for i := range gameData.Roads {
+			data := make([]byte, len(gameData.Roads[i]))
+			copy(data, gameData.Roads[i])
 
 			// Moving cursor at the beginning
-			_, err := conn.Write(gameData.clear)
+			_, err := conn.Write(gameData.Clear)
 			if err != nil {
 				return
+			}
+
+			// Checking and updating complexity
+			if gameData.Score > 100 && gameData.Score < 500 {
+				gameData.BombFactor = 2
+			} else if gameData.Score >= 500 {
+				gameData.BombFactor = 1
 			}
 
 			// Applying the bomb
 			if gameData.bombPosition.Y < road_lenght {
 				data[gameData.bombPosition.Y*road_width+gameData.bombPosition.X] = byte('X')
 				gameData.bombPosition.Y++
-			} else if rand.Int()%3 == 0 {
+			} else if rand.Int()%gameData.BombFactor == 0 {
 				gameData.bombPosition.X, gameData.bombPosition.Y = rand.Intn(road_width-3)+1, 0
 			}
 
-			// Applying the car
+			// Applying the Car
 			for line := 0; line < 7; line++ {
-				copy(data[((gameData.carPosition.Y+line)*road_width+gameData.carPosition.X):((gameData.carPosition.Y+line)*road_width+gameData.carPosition.X)+15], gameData.car[line*car_width:line*car_width+15])
+				copy(data[((gameData.CarPosition.Y+line)*road_width+gameData.CarPosition.X):((gameData.CarPosition.Y+line)*road_width+gameData.CarPosition.X)+15], gameData.Car[line*Car_width:line*Car_width+15])
 			}
 
 			_, err = conn.Write(data)
