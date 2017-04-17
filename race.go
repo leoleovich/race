@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/pkg/errors"
@@ -35,15 +36,16 @@ type Player struct {
 }
 
 type GameData struct {
-	Roads                [][]byte
-	Car, Clear, GameOver []byte
-	Top                  []Player
+	Roads      [][]byte
+	Car, Clear []byte
+	Top        []Player
 }
 
 type RoundData struct {
 	player                    Player
 	CarPosition, bombPosition Point
 	BombFactor, Speed         int
+	GameOver                  []byte
 }
 
 func generateRoad(reverse bool) []byte {
@@ -73,10 +75,11 @@ func generateRoad(reverse bool) []byte {
 	return road
 }
 
-func getAcid(conf *Config, fileName string) []byte {
+func getAcid(conf *Config, fileName string) ([]byte, error) {
 	fileStat, err := os.Stat(conf.AcidPath + "/" + fileName)
 	if err != nil {
 		conf.Log.Printf("Acid %s does not exist: %v\n", fileName, err)
+		return []byte{}, err
 	}
 
 	acid := make([]byte, fileStat.Size())
@@ -89,7 +92,7 @@ func getAcid(conf *Config, fileName string) []byte {
 
 	f.Read(acid)
 
-	return acid
+	return acid, nil
 }
 
 func updatePosition(conn net.Conn, position *Point) {
@@ -153,52 +156,72 @@ func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameD
 	// Score
 	scoreStr := fmt.Sprintf("%d", roundData.player.Score)
 	for i, char := range scoreStr {
-		gameData.GameOver[i] = byte(char)
+		roundData.GameOver[i] = byte(char)
 	}
 	//:
-	gameData.GameOver[result_width/2] = byte(':')
+	roundData.GameOver[result_width/2] = byte(':')
 	//Name
 	for i, char := range []byte(roundData.player.Name) {
-		gameData.GameOver[result_width-len(roundData.player.Name)+i] = byte(char)
+		roundData.GameOver[result_width-1-len(roundData.player.Name)+i] = byte(char)
 	}
 
-	if len(gameData.Top) == 0 {
-		gameData.Top = append(gameData.Top, roundData.player)
-	} else {
-		// Then we check on which place is current player
-		for i, player := range gameData.Top {
-			if roundData.player.Score >= player.Score || len(gameData.Top) < max_players_in_top {
-				// Insert new record
-				gameData.Top = append(gameData.Top[:i], append([]Player{roundData.player}, gameData.Top[i:]...)...)
-				// Delete last player in the top list
-				if len(gameData.Top) > max_players_in_top {
-					gameData.Top = gameData.Top[:len(gameData.Top)-1]
-				}
-				break
+	// Then we check on which place is current player
+	inserted := false
+	for i, player := range gameData.Top {
+		if roundData.player.Score >= player.Score {
+			// Insert new record
+			gameData.Top = append(gameData.Top[:i], append([]Player{roundData.player}, gameData.Top[i:]...)...)
+			inserted = true
+			// Delete last player in the top list
+			if len(gameData.Top) > max_players_in_top {
+				gameData.Top = gameData.Top[:len(gameData.Top)-1]
 			}
+			break
 		}
+	}
+	if !inserted {
+		gameData.Top = append(gameData.Top, roundData.player)
 	}
 
 	//TOP
-	copy(gameData.GameOver[2*result_width+result_width/2-1:2*result_width+result_width/2+2], []byte("TOP"))
+	copy(roundData.GameOver[1*result_width+result_width/2-1:2*result_width+result_width/2+2], []byte("TOP"))
 
 	// Then print new top
 	for place, player := range gameData.Top {
-		conf.Log.Println(place)
 		// Score
 		scoreStr := fmt.Sprintf("%d", player.Score)
 		for i, char := range scoreStr {
-			gameData.GameOver[(3+place)*result_width+i] = byte(char)
+			roundData.GameOver[(2+place)*result_width+i] = byte(char)
 		}
 		//:
-		gameData.GameOver[(3+place)*result_width+result_width/2] = byte(':')
+		roundData.GameOver[(2+place)*result_width+result_width/2] = byte(':')
 		//Name
 		for i, char := range []byte(player.Name) {
-			gameData.GameOver[(3+place)*result_width+result_width-1-len(player.Name)+i] = byte(char)
+			roundData.GameOver[(2+place)*result_width+result_width-1-len(player.Name)+i] = byte(char)
 		}
 	}
 
-	conn.Write(gameData.GameOver)
+	conn.Write(roundData.GameOver)
+	// We do not need to check for error because user should not care, but logs are written
+	saveScore(conf, gameData)
+}
+
+func saveScore(conf *Config, gameData *GameData) error {
+	b, err := json.Marshal(gameData.Top)
+	if err != nil {
+		conf.Log.Println(err)
+		return err
+	}
+
+	scoreFile, err := os.OpenFile(conf.ScorePath+"/score.json", os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		conf.Log.Println(err)
+		return err
+	}
+	defer scoreFile.Close()
+
+	scoreFile.Write(b)
+	return nil
 }
 
 func round(conf *Config, conn net.Conn, gameData *GameData) {
@@ -207,8 +230,9 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 	roundData := RoundData{}
 	roundData.CarPosition = Point{12, 12}
 	roundData.bombPosition = Point{road_width, road_lenght}
+	roundData.GameOver, _ = getAcid(conf, "game_over.txt")
 
-	roundData.BombFactor = 3
+	roundData.BombFactor = 10
 	roundData.Speed = 200
 
 	name, err := readName(conf, conn)
@@ -243,7 +267,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 
 			// Checking and updating complexity
 			if roundData.player.Score > 100 && roundData.player.Score < 200 {
-				roundData.BombFactor = 2
+				roundData.BombFactor = 5
 				roundData.Speed = 150
 			} else if roundData.player.Score >= 200 && roundData.player.Score < 400 {
 				roundData.BombFactor = 1
@@ -287,7 +311,7 @@ func main() {
 
 	flag.StringVar(&logFile, "l", "/var/log/race.log", "Log file")
 	flag.StringVar(&conf.AcidPath, "a", "/Users/leoleovich/go/src/github.com/leoleovich/race/artifacts", "Artifacts location")
-	flag.StringVar(&conf.AcidPath, "s", "/Users/leoleovich/go/src/github.com/leoleovich/race/artifacts", "Score location")
+	flag.StringVar(&conf.ScorePath, "s", "/Users/leoleovich/go/src/github.com/leoleovich/race/artifacts", "Score location")
 	flag.Parse()
 
 	logfile, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
@@ -302,9 +326,11 @@ func main() {
 
 	gameData := GameData{}
 	gameData.Roads = [][]byte{generateRoad(false), generateRoad(true)}
-	gameData.Car = getAcid(conf, "car.txt")
-	gameData.Clear = getAcid(conf, "clear.txt")
-	gameData.GameOver = getAcid(conf, "game_over.txt")
+	gameData.Car, _ = getAcid(conf, "car.txt")
+	gameData.Clear, _ = getAcid(conf, "clear.txt")
+	scoreData, _ := getAcid(conf, "score.json")
+	err = json.Unmarshal(scoreData, &gameData.Top)
+	conf.Log.Println(err)
 
 	for {
 		conn, err := l.Accept()
