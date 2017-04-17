@@ -17,7 +17,8 @@ const road_width = 40
 const road_lenght = 20
 const Car_width = 16
 const Car_lenght = 7
-const result_width = 75
+const result_width = 76
+const max_players_in_top = 10
 
 type Config struct {
 	Log                 *log.Logger
@@ -28,12 +29,20 @@ type Point struct {
 	X, Y int
 }
 
+type Player struct {
+	Name  string
+	Score int64
+}
+
 type GameData struct {
-	PlayerName                string
+	Roads                [][]byte
+	Car, Clear, GameOver []byte
+	Top                  []Player
+}
+
+type RoundData struct {
+	player                    Player
 	CarPosition, bombPosition Point
-	Roads                     [][]byte
-	Car, Clear, GameOver      []byte
-	Score                     int64
 	BombFactor, Speed         int
 }
 
@@ -109,10 +118,10 @@ func updatePosition(conn net.Conn, position *Point) {
 	}
 }
 
-func updateScore(gameData *GameData) {
+func updateScore(roundData *RoundData) {
 	for {
-		gameData.Score++
-		time.Sleep(time.Duration(gameData.Speed) * time.Millisecond)
+		roundData.player.Score++
+		time.Sleep(time.Duration(roundData.Speed) * time.Millisecond)
 	}
 
 }
@@ -136,56 +145,89 @@ func readName(conf *Config, conn net.Conn) (string, error) {
 	return strings.Replace(name, "\n", "", -1), nil
 }
 
-func gameOver(conf *Config, conn net.Conn, gameData *GameData) {
+func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameData) {
 
-	//Name
-	for i, char := range []byte(gameData.PlayerName) {
-		gameData.GameOver[i] = char
+	conn.Write(gameData.Clear)
+
+	// First we print current player result:
+	// Score
+	scoreStr := fmt.Sprintf("%d", roundData.player.Score)
+	for i, char := range scoreStr {
+		gameData.GameOver[i] = byte(char)
 	}
 	//:
 	gameData.GameOver[result_width/2] = byte(':')
-	// Score
-	scoreStr := fmt.Sprintf("%d", gameData.Score)
-	for i := range scoreStr {
-		gameData.GameOver[result_width-len(scoreStr)+i] = byte(scoreStr[i])
-
+	//Name
+	for i, char := range []byte(roundData.player.Name) {
+		gameData.GameOver[result_width-len(roundData.player.Name)+i] = byte(char)
 	}
-	conn.Write(gameData.Clear)
-	conn.Write(gameData.GameOver)
 
+	if len(gameData.Top) == 0 {
+		gameData.Top = append(gameData.Top, roundData.player)
+	} else {
+		// Then we check on which place is current player
+		for i, player := range gameData.Top {
+			if roundData.player.Score >= player.Score || len(gameData.Top) < max_players_in_top {
+				// Insert new record
+				gameData.Top = append(gameData.Top[:i], append([]Player{roundData.player}, gameData.Top[i:]...)...)
+				// Delete last player in the top list
+				if len(gameData.Top) > max_players_in_top {
+					gameData.Top = gameData.Top[:len(gameData.Top)-1]
+				}
+				break
+			}
+		}
+	}
+
+	//TOP
+	copy(gameData.GameOver[2*result_width+result_width/2-1:2*result_width+result_width/2+2], []byte("TOP"))
+
+	// Then print new top
+	for place, player := range gameData.Top {
+		conf.Log.Println(place)
+		// Score
+		scoreStr := fmt.Sprintf("%d", player.Score)
+		for i, char := range scoreStr {
+			gameData.GameOver[(3+place)*result_width+i] = byte(char)
+		}
+		//:
+		gameData.GameOver[(3+place)*result_width+result_width/2] = byte(':')
+		//Name
+		for i, char := range []byte(player.Name) {
+			gameData.GameOver[(3+place)*result_width+result_width-1-len(player.Name)+i] = byte(char)
+		}
+	}
+
+	conn.Write(gameData.GameOver)
 }
 
-func handleRequest(conf *Config, conn net.Conn) {
+func round(conf *Config, conn net.Conn, gameData *GameData) {
 	defer conn.Close()
 
-	gameData := GameData{}
-	gameData.CarPosition = Point{12, 12}
-	gameData.bombPosition = Point{road_width, road_lenght}
-	gameData.BombFactor = 3
-	gameData.Speed = 200
+	roundData := RoundData{}
+	roundData.CarPosition = Point{12, 12}
+	roundData.bombPosition = Point{road_width, road_lenght}
 
-	gameData.Roads = [][]byte{generateRoad(false), generateRoad(true)}
-	gameData.Car = getAcid(conf, "Car.txt")
-	gameData.Clear = getAcid(conf, "Clear.txt")
-	gameData.GameOver = getAcid(conf, "game_over.txt")
+	roundData.BombFactor = 3
+	roundData.Speed = 200
 
 	name, err := readName(conf, conn)
 	if err != nil {
 		return
 	}
-	gameData.PlayerName = name
-	go updateScore(&gameData)
-	go updatePosition(conn, &gameData.CarPosition)
+	roundData.player.Name = name
+	go updateScore(&roundData)
+	go updatePosition(conn, &roundData.CarPosition)
 
 	for {
-		if gameData.CarPosition.X < 1 || gameData.CarPosition.X > 23 || gameData.CarPosition.Y < 1 || gameData.CarPosition.Y > 12 {
+		if roundData.CarPosition.X < 1 || roundData.CarPosition.X > 23 || roundData.CarPosition.Y < 1 || roundData.CarPosition.Y > 12 {
 			// Hit the wall
-			gameOver(conf, conn, &gameData)
+			gameOver(conf, conn, &roundData, gameData)
 			return
-		} else if gameData.CarPosition.X <= gameData.bombPosition.X && gameData.CarPosition.X+Car_width-1 > gameData.bombPosition.X &&
-			gameData.CarPosition.Y < gameData.bombPosition.Y && gameData.CarPosition.Y+Car_lenght-1 > gameData.bombPosition.Y {
+		} else if roundData.CarPosition.X <= roundData.bombPosition.X && roundData.CarPosition.X+Car_width-1 > roundData.bombPosition.X &&
+			roundData.CarPosition.Y < roundData.bombPosition.Y && roundData.CarPosition.Y+Car_lenght-1 > roundData.bombPosition.Y {
 			// Hit the bomb
-			gameOver(conf, conn, &gameData)
+			gameOver(conf, conn, &roundData, gameData)
 			return
 		}
 
@@ -200,31 +242,31 @@ func handleRequest(conf *Config, conn net.Conn) {
 			}
 
 			// Checking and updating complexity
-			if gameData.Score > 100 && gameData.Score < 200 {
-				gameData.BombFactor = 2
-				gameData.Speed = 150
-			} else if gameData.Score >= 200 && gameData.Score < 400 {
-				gameData.BombFactor = 1
-				gameData.Speed = 100
-			} else if gameData.Score >= 400 {
-				gameData.Speed = 50
+			if roundData.player.Score > 100 && roundData.player.Score < 200 {
+				roundData.BombFactor = 2
+				roundData.Speed = 150
+			} else if roundData.player.Score >= 200 && roundData.player.Score < 400 {
+				roundData.BombFactor = 1
+				roundData.Speed = 100
+			} else if roundData.player.Score >= 400 {
+				roundData.Speed = 50
 			}
 
 			// Applying the bomb
-			if gameData.bombPosition.Y < road_lenght {
-				data[gameData.bombPosition.Y*road_width+gameData.bombPosition.X] = byte('X')
-				gameData.bombPosition.Y++
-			} else if rand.Int()%gameData.BombFactor == 0 {
-				gameData.bombPosition.X, gameData.bombPosition.Y = rand.Intn(road_width-3)+1, 0
+			if roundData.bombPosition.Y < road_lenght {
+				data[roundData.bombPosition.Y*road_width+roundData.bombPosition.X] = byte('X')
+				roundData.bombPosition.Y++
+			} else if rand.Int()%roundData.BombFactor == 0 {
+				roundData.bombPosition.X, roundData.bombPosition.Y = rand.Intn(road_width-3)+1, 0
 			}
 
 			// Applying the Car
 			for line := 0; line < 7; line++ {
-				copy(data[((gameData.CarPosition.Y+line)*road_width+gameData.CarPosition.X):((gameData.CarPosition.Y+line)*road_width+gameData.CarPosition.X)+15], gameData.Car[line*Car_width:line*Car_width+15])
+				copy(data[((roundData.CarPosition.Y+line)*road_width+roundData.CarPosition.X):((roundData.CarPosition.Y+line)*road_width+roundData.CarPosition.X)+15], gameData.Car[line*Car_width:line*Car_width+15])
 			}
 
 			// Applying the score
-			scoreStr := fmt.Sprintf("%d", gameData.Score)
+			scoreStr := fmt.Sprintf("%d", roundData.player.Score)
 			for i := range scoreStr {
 				data[i] = byte(scoreStr[i])
 
@@ -234,7 +276,7 @@ func handleRequest(conf *Config, conn net.Conn) {
 			if err != nil {
 				return
 			}
-			time.Sleep(time.Duration(gameData.Speed) * time.Millisecond)
+			time.Sleep(time.Duration(roundData.Speed) * time.Millisecond)
 		}
 	}
 }
@@ -258,11 +300,17 @@ func main() {
 	}
 	defer l.Close()
 
+	gameData := GameData{}
+	gameData.Roads = [][]byte{generateRoad(false), generateRoad(true)}
+	gameData.Car = getAcid(conf, "car.txt")
+	gameData.Clear = getAcid(conf, "clear.txt")
+	gameData.GameOver = getAcid(conf, "game_over.txt")
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			conf.Log.Println("Failed to accept request", err)
 		}
-		go handleRequest(conf, conn)
+		go round(conf, conn, &gameData)
 	}
 }
