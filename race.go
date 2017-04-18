@@ -249,7 +249,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 	go updatePosition(conn, &roundData.CarPosition)
 
 	for {
-		if roundData.CarPosition.X < 1 || roundData.CarPosition.X > 23 || roundData.CarPosition.Y < 1 || roundData.CarPosition.Y > 12 {
+		if roundData.CarPosition.X < 1 || roundData.CarPosition.X > road_width-car_width-1 || roundData.CarPosition.Y < 1 || roundData.CarPosition.Y > road_lenght-car_lenght-1 {
 			// Hit the wall
 			gameOver(conf, conn, &roundData, gameData)
 			return
