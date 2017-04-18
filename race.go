@@ -172,15 +172,16 @@ func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameD
 			// Insert new record
 			gameData.Top = append(gameData.Top[:i], append([]Player{roundData.player}, gameData.Top[i:]...)...)
 			inserted = true
-			// Delete last player in the top list
-			if len(gameData.Top) > max_players_in_top {
-				gameData.Top = gameData.Top[:len(gameData.Top)-1]
-			}
 			break
 		}
 	}
 	if !inserted {
 		gameData.Top = append(gameData.Top, roundData.player)
+	}
+
+	// Remove slowest user if top is full
+	if len(gameData.Top) >= max_players_in_top {
+		gameData.Top = gameData.Top[:max_players_in_top]
 	}
 
 	//TOP
@@ -213,6 +214,8 @@ func saveScore(conf *Config, gameData *GameData) error {
 		return err
 	}
 
+	// Being sure file was not there
+	os.Remove(conf.ScorePath + "/score.json")
 	scoreFile, err := os.OpenFile(conf.ScorePath+"/score.json", os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		conf.Log.Println(err)
@@ -330,7 +333,6 @@ func main() {
 	gameData.Clear, _ = getAcid(conf, "clear.txt")
 	scoreData, _ := getAcid(conf, "score.json")
 	err = json.Unmarshal(scoreData, &gameData.Top)
-	conf.Log.Println(err)
 
 	for {
 		conn, err := l.Accept()
