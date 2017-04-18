@@ -261,6 +261,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 		} else if roundData.CarPosition.X <= roundData.bonusPosition.X && roundData.CarPosition.X+Car_width-1 > roundData.bonusPosition.X &&
 			roundData.CarPosition.Y < roundData.bonusPosition.Y && roundData.CarPosition.Y+Car_lenght-1 > roundData.bonusPosition.Y {
 			roundData.player.Score+=10
+			roundData.bonusPosition = Point{road_width, road_lenght}
 		}
 
 		for i := range gameData.Roads {
