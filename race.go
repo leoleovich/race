@@ -42,10 +42,10 @@ type GameData struct {
 }
 
 type RoundData struct {
-	player                    Player
-	CarPosition, bombPosition Point
-	BombFactor, Speed         int
-	GameOver                  []byte
+	player                                   Player
+	CarPosition, bombPosition, bonusPosition Point
+	BombFactor, BonusFactor, Speed           int
+	GameOver                                 []byte
 }
 
 func generateRoad(reverse bool) []byte {
@@ -233,9 +233,11 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 	roundData := RoundData{}
 	roundData.CarPosition = Point{12, 12}
 	roundData.bombPosition = Point{road_width, road_lenght}
+	roundData.bonusPosition = Point{road_width, road_lenght}
 	roundData.GameOver, _ = getAcid(conf, "game_over.txt")
 
 	roundData.BombFactor = 10
+	roundData.BonusFactor = 123
 	roundData.Speed = 200
 
 	name, err := readName(conf, conn)
@@ -256,6 +258,9 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 			// Hit the bomb
 			gameOver(conf, conn, &roundData, gameData)
 			return
+		} else if roundData.CarPosition.X <= roundData.bonusPosition.X && roundData.CarPosition.X+Car_width-1 > roundData.bonusPosition.X &&
+			roundData.CarPosition.Y < roundData.bonusPosition.Y && roundData.CarPosition.Y+Car_lenght-1 > roundData.bonusPosition.Y {
+			roundData.player.Score+=10
 		}
 
 		for i := range gameData.Roads {
@@ -270,13 +275,25 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 
 			// Checking and updating complexity
 			if roundData.player.Score > 100 && roundData.player.Score < 200 {
-				roundData.BombFactor = 5
 				roundData.Speed = 150
 			} else if roundData.player.Score >= 200 && roundData.player.Score < 400 {
-				roundData.BombFactor = 1
+				roundData.BonusFactor = 5
 				roundData.Speed = 100
-			} else if roundData.player.Score >= 400 {
-				roundData.Speed = 50
+			} else if roundData.player.Score >= 400 && roundData.player.Score < 600 {
+				roundData.BonusFactor = 10
+				roundData.BombFactor = 5
+			} else if roundData.player.Score >= 600 {
+				roundData.BonusFactor = 123
+				roundData.BombFactor = 1
+				roundData.Speed = 80
+			}
+
+			// Applying the bonus
+			if roundData.bonusPosition.Y < road_lenght {
+				data[roundData.bonusPosition.Y*road_width+roundData.bonusPosition.X] = byte('$')
+				roundData.bonusPosition.Y++
+			} else if rand.Int()%roundData.BonusFactor == 0 {
+				roundData.bonusPosition.X, roundData.bonusPosition.Y = rand.Intn(road_width-3)+1, 0
 			}
 
 			// Applying the bomb
