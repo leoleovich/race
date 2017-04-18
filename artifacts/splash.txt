@@ -1,0 +1,4 @@
+        WELCOME TO THE RACE!
+
+Collect bonuses ($) and avoid mines (X)
+Enter your name:

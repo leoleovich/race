@@ -36,9 +36,9 @@ type Player struct {
 }
 
 type GameData struct {
-	Roads      [][]byte
-	Car, Clear []byte
-	Top        []Player
+	Roads              [][]byte
+	Car, Clear, Splash []byte
+	Top                []Player
 }
 
 type RoundData struct {
@@ -129,8 +129,8 @@ func updateScore(roundData *RoundData) {
 
 }
 
-func readName(conf *Config, conn net.Conn) (string, error) {
-	conn.Write([]byte("Enter your name:"))
+func readName(conf *Config, conn net.Conn, gameData *GameData) (string, error) {
+	conn.Write(gameData.Splash)
 	io := bufio.NewReader(conn)
 	name, err := io.ReadString('\n')
 	if err != nil {
@@ -277,7 +277,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 	roundData.BonusFactor = 10
 	roundData.Speed = 200
 
-	name, err := readName(conf, conn)
+	name, err := readName(conf, conn, gameData)
 	if err != nil {
 		return
 	}
@@ -364,6 +364,7 @@ func main() {
 	gameData.Roads = [][]byte{generateRoad(false), generateRoad(true)}
 	gameData.Car, _ = getAcid(conf, "car.txt")
 	gameData.Clear, _ = getAcid(conf, "clear.txt")
+	gameData.Splash, _ = getAcid(conf, "splash.txt")
 	scoreData, _ := getAcid(conf, "score.json")
 	err = json.Unmarshal(scoreData, &gameData.Top)
 
