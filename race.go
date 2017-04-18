@@ -227,6 +227,43 @@ func saveScore(conf *Config, gameData *GameData) error {
 	return nil
 }
 
+func checkComplexity(roundData *RoundData) {
+	// Checking and updating complexity
+	if roundData.player.Score >= 600 {
+		roundData.BonusFactor = 100
+		roundData.BombFactor = 1
+		roundData.Speed = 80
+	} else if roundData.player.Score >= 400 {
+		roundData.BonusFactor = 10
+		roundData.BombFactor = 5
+	} else if roundData.player.Score >= 200 {
+		roundData.BonusFactor = 5
+		roundData.Speed = 100
+	} else if roundData.player.Score > 50 {
+		roundData.Speed = 150
+	}
+
+}
+
+func checkPosition(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameData) bool {
+	if roundData.CarPosition.X < 1 || roundData.CarPosition.X > road_width-car_width-1 || roundData.CarPosition.Y < 1 || roundData.CarPosition.Y > road_lenght-car_lenght-1 {
+		// Hit the wall
+		gameOver(conf, conn, roundData, gameData)
+		return false
+	} else if roundData.CarPosition.X <= roundData.bombPosition.X && roundData.CarPosition.X+car_width-1 > roundData.bombPosition.X &&
+		roundData.CarPosition.Y <= roundData.bombPosition.Y && roundData.CarPosition.Y+car_lenght-1 > roundData.bombPosition.Y {
+		// Hit the bomb
+		gameOver(conf, conn, roundData, gameData)
+		return false
+	} else if roundData.CarPosition.X <= roundData.bonusPosition.X && roundData.CarPosition.X+car_width-1 > roundData.bonusPosition.X &&
+		roundData.CarPosition.Y <= roundData.bonusPosition.Y && roundData.CarPosition.Y+car_lenght-1 > roundData.bonusPosition.Y {
+		// Get the bonus
+		roundData.player.Score += 10
+		roundData.bonusPosition = Point{road_width, road_lenght}
+	}
+	return true
+}
+
 func round(conf *Config, conn net.Conn, gameData *GameData) {
 	defer conn.Close()
 
@@ -249,20 +286,8 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 	go updatePosition(conn, &roundData.CarPosition)
 
 	for {
-		if roundData.CarPosition.X < 1 || roundData.CarPosition.X > road_width-car_width-1 || roundData.CarPosition.Y < 1 || roundData.CarPosition.Y > road_lenght-car_lenght-1 {
-			// Hit the wall
-			gameOver(conf, conn, &roundData, gameData)
+		if !checkPosition(conf, conn, &roundData, gameData) {
 			return
-		} else if roundData.CarPosition.X <= roundData.bombPosition.X && roundData.CarPosition.X+car_width-1 > roundData.bombPosition.X &&
-			roundData.CarPosition.Y <= roundData.bombPosition.Y && roundData.CarPosition.Y+car_lenght-1 > roundData.bombPosition.Y {
-			// Hit the bomb
-			gameOver(conf, conn, &roundData, gameData)
-			return
-		} else if roundData.CarPosition.X <= roundData.bonusPosition.X && roundData.CarPosition.X+car_width-1 > roundData.bonusPosition.X &&
-			roundData.CarPosition.Y <= roundData.bonusPosition.Y && roundData.CarPosition.Y+car_lenght-1 > roundData.bonusPosition.Y {
-			// Get the bonus
-			roundData.player.Score += 10
-			roundData.bonusPosition = Point{road_width, road_lenght}
 		}
 
 		for i := range gameData.Roads {
@@ -276,19 +301,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 			}
 
 			// Checking and updating complexity
-			if roundData.player.Score > 100 && roundData.player.Score < 200 {
-				roundData.Speed = 150
-			} else if roundData.player.Score >= 200 && roundData.player.Score < 400 {
-				roundData.BonusFactor = 5
-				roundData.Speed = 100
-			} else if roundData.player.Score >= 400 && roundData.player.Score < 600 {
-				roundData.BonusFactor = 10
-				roundData.BombFactor = 5
-			} else if roundData.player.Score >= 600 {
-				roundData.BonusFactor = 123
-				roundData.BombFactor = 1
-				roundData.Speed = 80
-			}
+			checkComplexity(&roundData)
 
 			// Applying the bonus
 			if roundData.bonusPosition.Y < road_lenght {
