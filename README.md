@@ -1,9 +1,13 @@
 # Description
 `clear && stty -icanon && nc localhost 4242`
 
-You will be driving a car and you need to avoid bombs and walls:
+You will be driving a car and you need to avoid bombs and walls and collect bonuses:
 ```
-18                 |                  |
+237                |                  |
+|                                     |
+|                  |                  |
+|                                     |
+|   X              |                  |
 |                                     |
 |                  |                  |
 |                                     |
@@ -11,19 +15,14 @@ You will be driving a car and you need to avoid bombs and walls:
 |                                     |
 |                  |                  |
 |                                     |
-|                  |                  |
+|               /TTTTTTT\             |
+|             |=|       |=|           |
+|              | \_____/ |            |
+|              | |     | |     $      |
+|              | |_____| |            |
+|             |=|/_____\|=|           |
+|              |IIIIIIIII|            |
 |                                     |
-|                  |                  |
-|                                     |
-|             _^_______^_             |
-|           ||           ||           |
-|            |           |            |
-|            |           |            |
-|      X     |           |            |
-|           ||           ||           |
-|            -x---------x-            |
-|                                     |
-
 ```
 After you crash you will get the list of TOP players:
 ```

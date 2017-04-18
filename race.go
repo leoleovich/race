@@ -16,8 +16,8 @@ import (
 
 const road_width = 40
 const road_lenght = 20
-const Car_width = 16
-const Car_lenght = 7
+const car_width = 14
+const car_lenght = 7
 const result_width = 76
 const max_players_in_top = 10
 
@@ -231,13 +231,13 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 	defer conn.Close()
 
 	roundData := RoundData{}
-	roundData.CarPosition = Point{12, 12}
+	roundData.CarPosition = Point{road_width/2-car_width/2, road_lenght-car_lenght-1}
 	roundData.bombPosition = Point{road_width, road_lenght}
 	roundData.bonusPosition = Point{road_width, road_lenght}
 	roundData.GameOver, _ = getAcid(conf, "game_over.txt")
 
 	roundData.BombFactor = 10
-	roundData.BonusFactor = 123
+	roundData.BonusFactor = 10
 	roundData.Speed = 200
 
 	name, err := readName(conf, conn)
@@ -253,13 +253,13 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 			// Hit the wall
 			gameOver(conf, conn, &roundData, gameData)
 			return
-		} else if roundData.CarPosition.X <= roundData.bombPosition.X && roundData.CarPosition.X+Car_width-1 > roundData.bombPosition.X &&
-			roundData.CarPosition.Y < roundData.bombPosition.Y && roundData.CarPosition.Y+Car_lenght-1 > roundData.bombPosition.Y {
+		} else if roundData.CarPosition.X <= roundData.bombPosition.X && roundData.CarPosition.X+car_width-1 > roundData.bombPosition.X &&
+			roundData.CarPosition.Y < roundData.bombPosition.Y && roundData.CarPosition.Y+car_lenght-1 > roundData.bombPosition.Y {
 			// Hit the bomb
 			gameOver(conf, conn, &roundData, gameData)
 			return
-		} else if roundData.CarPosition.X <= roundData.bonusPosition.X && roundData.CarPosition.X+Car_width-1 > roundData.bonusPosition.X &&
-			roundData.CarPosition.Y < roundData.bonusPosition.Y && roundData.CarPosition.Y+Car_lenght-1 > roundData.bonusPosition.Y {
+		} else if roundData.CarPosition.X <= roundData.bonusPosition.X && roundData.CarPosition.X+car_width-1 > roundData.bonusPosition.X &&
+			roundData.CarPosition.Y < roundData.bonusPosition.Y && roundData.CarPosition.Y+car_lenght-1 > roundData.bonusPosition.Y {
 			roundData.player.Score+=10
 			roundData.bonusPosition = Point{road_width, road_lenght}
 		}
@@ -306,8 +306,10 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 			}
 
 			// Applying the Car
-			for line := 0; line < 7; line++ {
-				copy(data[((roundData.CarPosition.Y+line)*road_width+roundData.CarPosition.X):((roundData.CarPosition.Y+line)*road_width+roundData.CarPosition.X)+15], gameData.Car[line*Car_width:line*Car_width+15])
+			for line := 0; line < car_lenght; line++ {
+				copy(data[
+					((roundData.CarPosition.Y+line)*road_width+roundData.CarPosition.X):((roundData.CarPosition.Y+line)*road_width+roundData.CarPosition.X)+car_width-1],
+					gameData.Car[line*car_width:line*car_width+car_width-1])
 			}
 
 			// Applying the score
