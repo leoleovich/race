@@ -22,6 +22,8 @@ const car_lenght = 7
 const result_width = 76
 const max_players_in_top = 10
 const speed_factor = 10500
+const border_width = 15
+const total_width = road_width + 2*border_width
 
 type Config struct {
 	Log                 *log.Logger
@@ -59,15 +61,15 @@ func (p Players) Less(i, j int) bool { return p[i].Score > p[j].Score }
 func generateRoads(size int) [][]byte {
 	roads := make([][]byte, size)
 	for offset := 0; offset < size; offset++ {
-		roads[offset] = make([]byte, road_width*road_lenght)
+		roads[offset] = make([]byte, total_width*road_lenght)
 		for row := 0; row < road_lenght; row++ {
-			for column := 0; column < road_width; column++ {
+			for column := 0; column < total_width; column++ {
 				var symbol byte
-				if column == 0 || column == road_width-2 {
+				if column == border_width || column == total_width-border_width-2 {
 					symbol = byte('|')
-				} else if column == road_width-1 {
+				} else if column == total_width-1 {
 					symbol = byte('\n')
-				} else if column == road_width/2-1 {
+				} else if column == total_width/2-1 {
 					if (row-offset)%size == 0 {
 						symbol = byte('|')
 					} else {
@@ -76,7 +78,7 @@ func generateRoads(size int) [][]byte {
 				} else {
 					symbol = byte(' ')
 				}
-				roads[offset][row*road_width+column] = symbol
+				roads[offset][row*total_width+column] = symbol
 			}
 		}
 	}
@@ -275,7 +277,7 @@ func checkComplexity(roundData *RoundData) {
 }
 
 func checkPosition(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameData) bool {
-	if roundData.CarPosition.X < 1 || roundData.CarPosition.X > road_width-car_width-1 || roundData.CarPosition.Y < 1 || roundData.CarPosition.Y > road_lenght-car_lenght-1 {
+	if roundData.CarPosition.X <= border_width || roundData.CarPosition.X >= border_width+road_width-car_width-1 || roundData.CarPosition.Y < 1 || roundData.CarPosition.Y > road_lenght-car_lenght-1 {
 		// Hit the wall
 		gameOver(conf, conn, roundData, gameData)
 		return false
@@ -297,9 +299,9 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 	defer conn.Close()
 
 	roundData := RoundData{}
-	roundData.CarPosition = Point{road_width/2 - car_width/2, road_lenght - car_lenght - 1}
-	roundData.bombPosition = Point{road_width, road_lenght}
-	roundData.bonusPosition = Point{road_width, road_lenght}
+	roundData.CarPosition = Point{total_width/2 - car_width/2, road_lenght - car_lenght - 1}
+	roundData.bombPosition = Point{total_width, road_lenght}
+	roundData.bonusPosition = Point{total_width, road_lenght}
 	roundData.GameOver, _ = getAcid(conf, "game_over.txt")
 
 	roundData.BombFactor = 10
@@ -334,35 +336,35 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 
 			// Applying the bonus
 			if roundData.bonusPosition.Y < road_lenght {
-				data[roundData.bonusPosition.Y*road_width+roundData.bonusPosition.X] = byte('$')
+				data[roundData.bonusPosition.Y*total_width+roundData.bonusPosition.X] = byte('$')
 				roundData.bonusPosition.Y++
 			} else if rand.Int()%roundData.BonusFactor == 0 {
-				roundData.bonusPosition.X, roundData.bonusPosition.Y = rand.Intn(road_width-3)+1, 0
+				roundData.bonusPosition.X, roundData.bonusPosition.Y = rand.Intn(road_width-3)+1+border_width, 0
 			}
 
 			// Applying the bomb
 			if roundData.bombPosition.Y < road_lenght {
-				data[roundData.bombPosition.Y*road_width+roundData.bombPosition.X] = byte('X')
+				data[roundData.bombPosition.Y*total_width+roundData.bombPosition.X] = byte('X')
 				roundData.bombPosition.Y++
 			} else if rand.Int()%roundData.BombFactor == 0 {
-				roundData.bombPosition.X, roundData.bombPosition.Y = rand.Intn(road_width-3)+1, 0
+				roundData.bombPosition.X, roundData.bombPosition.Y = rand.Intn(road_width-3)+1+border_width, 0
 			}
 
 			// Applying the Car
 			for line := 0; line < car_lenght; line++ {
-				copy(data[((roundData.CarPosition.Y+line)*road_width+roundData.CarPosition.X):((roundData.CarPosition.Y+line)*road_width+roundData.CarPosition.X)+car_width-1],
+				copy(data[((roundData.CarPosition.Y+line)*total_width+roundData.CarPosition.X):((roundData.CarPosition.Y+line)*total_width+roundData.CarPosition.X)+car_width-1],
 					gameData.Car[line*car_width:line*car_width+car_width-1])
 			}
 
 			// Applying the score
 			scoreStr := fmt.Sprintf("Score: %d", roundData.player.Score)
 			for i := range scoreStr {
-				data[(road_lenght-1)*road_width+i] = byte(scoreStr[i])
+				data[(road_lenght-1)*total_width+i] = byte(scoreStr[i])
 			}
 			// Applying the speed
 			speedStr := fmt.Sprintf("Speed: %d km/h", speed_factor/roundData.Speed)
 			for i := range speedStr {
-				data[road_lenght*road_width-len(speedStr)-1+i] = byte(speedStr[i])
+				data[road_lenght*total_width-len(speedStr)-1+i] = byte(speedStr[i])
 			}
 
 			_, err = conn.Write(data)
