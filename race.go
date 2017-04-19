@@ -107,9 +107,25 @@ func updatePosition(conn net.Conn, position *Point) {
 	for {
 		direction := make([]byte, 1)
 
-		_, err := conn.Read(direction)
-		if err != nil {
-			return
+		// Read all possible bytes and try to find a sequence of:
+		// ESC [ cursor_key
+		escpos := 0
+		for {
+			_, err := conn.Read(direction)
+			if err != nil {
+				return
+			}
+			if escpos == 0 && direction[0] == 27 {
+				escpos = 1
+				continue
+			}
+			if escpos == 1 && direction[0] == 91 {
+				escpos = 2
+				continue
+			}
+			if escpos == 2 {
+				break
+			}
 		}
 
 		switch direction[0] {
