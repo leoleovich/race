@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -31,11 +32,6 @@ type Point struct {
 	X, Y int
 }
 
-type Player struct {
-	Name  string
-	Score int64
-}
-
 type GameData struct {
 	Roads              [][]byte
 	Car, Clear, Splash []byte
@@ -48,6 +44,17 @@ type RoundData struct {
 	BombFactor, BonusFactor, Speed           int
 	GameOver                                 []byte
 }
+
+type Player struct {
+	Name  string
+	Score int64
+}
+
+type Players []Player
+
+func (p Players) Len() int           { return len(p) }
+func (p Players) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p Players) Less(i, j int) bool { return p[i].Score > p[j].Score }
 
 func generateRoad(reverse bool) []byte {
 	road := make([]byte, road_width*road_lenght)
@@ -168,34 +175,33 @@ func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameD
 
 	// Then we check on which place is current player
 	inserted := false
-	for i, player := range gameData.Top {
+	for _, player := range gameData.Top {
 		if roundData.player.Score >= player.Score {
 			// Protection from fair bots
 			if strings.Contains(roundData.player.Name, "BOT") {
 				for i, player := range gameData.Top {
 					if roundData.player.Name == player.Name {
-						inserted = true
 						gameData.Top[i].Score = roundData.player.Score
+						inserted = true
 						break
 					}
 				}
 			}
-			// Insert new record
+
+			// Insert new record to the end of slice
 			if !inserted {
-				gameData.Top = append(gameData.Top[:i], append([]Player{roundData.player}, gameData.Top[i:]...)...)
-				inserted = true
+				gameData.Top = append(gameData.Top, roundData.player)
+			}
+
+			// Resort the slice
+			sort.Sort(Players(gameData.Top))
+
+			// Remove slowest user if top is full
+			if len(gameData.Top) >= max_players_in_top {
+				gameData.Top = gameData.Top[:max_players_in_top]
 			}
 			break
-
 		}
-	}
-	if !inserted {
-		gameData.Top = append(gameData.Top, roundData.player)
-	}
-
-	// Remove slowest user if top is full
-	if len(gameData.Top) >= max_players_in_top {
-		gameData.Top = gameData.Top[:max_players_in_top]
 	}
 
 	//TOP
