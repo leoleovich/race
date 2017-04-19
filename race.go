@@ -159,24 +159,25 @@ func readName(conf *Config, conn net.Conn, gameData *GameData) (string, error) {
 
 func recalculatePlayers(gameData *GameData, roundData *RoundData) {
 	// Then we check on which place is current player
-	inserted := false
+	processed := false
 	for _, player := range gameData.Top {
-		if roundData.player.Score >= player.Score {
+		if roundData.player.Score >= player.Score || len(gameData.Top) < max_players_in_top {
 			// Squash all players
 			for i, player := range gameData.Top {
 				if roundData.player.Name == player.Name {
-					gameData.Top[i].Score = roundData.player.Score
-					inserted = true
+					if roundData.player.Score >= player.Score {
+						gameData.Top[i].Score = roundData.player.Score
+					}
+					processed = true
 					break
 				}
 			}
-
 			break
 		}
 	}
 
 	// Insert new record to the end of slice
-	if !inserted {
+	if !processed {
 		gameData.Top = append(gameData.Top, roundData.player)
 	}
 
