@@ -262,16 +262,14 @@ func checkComplexity(roundData *RoundData) {
 		roundData.BombFactor = 5
 	} else if roundData.player.Score >= 600 {
 		roundData.BonusFactor = 100
-		roundData.BombFactor = 1
+		roundData.BombFactor = 2
 		roundData.Speed = 80
-	} else if roundData.player.Score >= 400 {
+	} else if roundData.player.Score >= 200 {
 		roundData.BonusFactor = 10
 		roundData.BombFactor = 5
-	} else if roundData.player.Score >= 200 {
-		roundData.BonusFactor = 5
-		roundData.Speed = 100
+		roundData.Speed = 90
 	} else if roundData.player.Score >= 50 {
-		roundData.Speed = 150
+		roundData.Speed = 100
 	}
 
 }
@@ -306,7 +304,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 
 	roundData.BombFactor = 10
 	roundData.BonusFactor = 10
-	roundData.Speed = 200
+	roundData.Speed = 150
 
 	name, err := readName(conf, conn, gameData)
 	if err != nil {
