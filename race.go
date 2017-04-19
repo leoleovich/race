@@ -170,10 +170,23 @@ func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameD
 	inserted := false
 	for i, player := range gameData.Top {
 		if roundData.player.Score >= player.Score {
+			// Protection from fair bots
+			if strings.Contains(roundData.player.Name, "BOT") {
+				for i, player := range gameData.Top {
+					if roundData.player.Name == player.Name {
+						inserted = true
+						gameData.Top[i].Score = roundData.player.Score
+						break
+					}
+				}
+			}
 			// Insert new record
-			gameData.Top = append(gameData.Top[:i], append([]Player{roundData.player}, gameData.Top[i:]...)...)
-			inserted = true
+			if !inserted {
+				gameData.Top = append(gameData.Top[:i], append([]Player{roundData.player}, gameData.Top[i:]...)...)
+				inserted = true
+			}
 			break
+
 		}
 	}
 	if !inserted {
