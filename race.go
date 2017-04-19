@@ -20,6 +20,7 @@ const car_width = 14
 const car_lenght = 7
 const result_width = 76
 const max_players_in_top = 10
+const speed_factor = 10500
 
 type Config struct {
 	Log                 *log.Logger
@@ -70,7 +71,6 @@ func generateRoad(reverse bool) []byte {
 			}
 			road[row*road_width+column] = symbol
 		}
-
 	}
 	return road
 }
@@ -230,7 +230,9 @@ func saveScore(conf *Config, gameData *GameData) error {
 
 func checkComplexity(roundData *RoundData) {
 	// Checking and updating complexity
-	if roundData.player.Score >= 600 {
+	if roundData.player.Score >= 1000 {
+		roundData.Speed = 70
+	} else if roundData.player.Score >= 600 {
 		roundData.BonusFactor = 100
 		roundData.BombFactor = 1
 		roundData.Speed = 80
@@ -240,7 +242,7 @@ func checkComplexity(roundData *RoundData) {
 	} else if roundData.player.Score >= 200 {
 		roundData.BonusFactor = 5
 		roundData.Speed = 100
-	} else if roundData.player.Score > 50 {
+	} else if roundData.player.Score >= 50 {
 		roundData.Speed = 150
 	}
 
@@ -327,10 +329,14 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 			}
 
 			// Applying the score
-			scoreStr := fmt.Sprintf("%d", roundData.player.Score)
+			scoreStr := fmt.Sprintf("Score: %d", roundData.player.Score)
 			for i := range scoreStr {
-				data[i] = byte(scoreStr[i])
-
+				data[(road_lenght-1)*road_width+i] = byte(scoreStr[i])
+			}
+			// Applying the speed
+			speedStr := fmt.Sprintf("Speed: %d km/h", speed_factor/roundData.Speed)
+			for i := range speedStr {
+				data[road_lenght*road_width-len(speedStr)-1+i] = byte(speedStr[i])
 			}
 
 			_, err = conn.Write(data)
