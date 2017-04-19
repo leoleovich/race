@@ -132,11 +132,12 @@ func updateScore(roundData *RoundData) {
 func readName(conf *Config, conn net.Conn, gameData *GameData) (string, error) {
 	conn.Write(gameData.Splash)
 	io := bufio.NewReader(conn)
-	name, err := io.ReadString('\n')
+	line, err := io.ReadString('\n')
 	if err != nil {
 		conf.Log.Println("Error while name reading", err)
 		return "", err
 	}
+	name := strings.Replace(line, "\n", "", -1)
 	if name == "" {
 		conf.Log.Println("Empty name")
 		return "", errors.New("Empty name")
@@ -145,7 +146,7 @@ func readName(conf *Config, conn net.Conn, gameData *GameData) (string, error) {
 		conf.Log.Println("Too long name")
 		return "", errors.New("Too long name")
 	}
-	return strings.Replace(name, "\n", "", -1), nil
+	return name, nil
 }
 
 func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameData) {
