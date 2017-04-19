@@ -250,8 +250,16 @@ func saveScore(conf *Config, gameData *GameData) error {
 
 func checkComplexity(roundData *RoundData) {
 	// Checking and updating complexity
-	if roundData.player.Score >= 1000 {
+	if roundData.player.Score >= 2000 {
+		roundData.Speed = 50
+		roundData.BonusFactor = 1
+		roundData.BombFactor = 20
+	} else if roundData.player.Score >= 1500 {
+		roundData.Speed = 60
+		roundData.BombFactor = 10
+	} else if roundData.player.Score >= 1000 {
 		roundData.Speed = 70
+		roundData.BombFactor = 5
 	} else if roundData.player.Score >= 600 {
 		roundData.BonusFactor = 100
 		roundData.BombFactor = 1
