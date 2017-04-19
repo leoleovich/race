@@ -157,6 +157,37 @@ func readName(conf *Config, conn net.Conn, gameData *GameData) (string, error) {
 	return name, nil
 }
 
+func recalculatePlayers(gameData *GameData, roundData *RoundData) {
+	// Then we check on which place is current player
+	inserted := false
+	for _, player := range gameData.Top {
+		if roundData.player.Score >= player.Score {
+			// Squash all players
+			for i, player := range gameData.Top {
+				if roundData.player.Name == player.Name {
+					gameData.Top[i].Score = roundData.player.Score
+					inserted = true
+					break
+				}
+			}
+
+			break
+		}
+	}
+
+	// Insert new record to the end of slice
+	if !inserted {
+		gameData.Top = append(gameData.Top, roundData.player)
+	}
+
+	// Resort the slice
+	sort.Sort(Players(gameData.Top))
+
+	// Remove slowest user if top is full
+	if len(gameData.Top) >= max_players_in_top {
+		gameData.Top = gameData.Top[:max_players_in_top]
+	}
+}
 func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameData) {
 
 	conn.Write(gameData.Clear)
@@ -174,36 +205,7 @@ func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameD
 		roundData.GameOver[result_width-1-len(roundData.player.Name)+i] = byte(char)
 	}
 
-	// Then we check on which place is current player
-	inserted := false
-	for _, player := range gameData.Top {
-		if roundData.player.Score >= player.Score {
-			// Protection from fair bots
-			if strings.Contains(roundData.player.Name, "BOT") {
-				for i, player := range gameData.Top {
-					if roundData.player.Name == player.Name {
-						gameData.Top[i].Score = roundData.player.Score
-						inserted = true
-						break
-					}
-				}
-			}
-
-			// Insert new record to the end of slice
-			if !inserted {
-				gameData.Top = append(gameData.Top, roundData.player)
-			}
-
-			// Resort the slice
-			sort.Sort(Players(gameData.Top))
-
-			// Remove slowest user if top is full
-			if len(gameData.Top) >= max_players_in_top {
-				gameData.Top = gameData.Top[:max_players_in_top]
-			}
-			break
-		}
-	}
+	recalculatePlayers(gameData, roundData)
 
 	//TOP
 	copy(roundData.GameOver[1*result_width+result_width/2-1:2*result_width+result_width/2+2], []byte("TOP"))
