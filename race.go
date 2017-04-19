@@ -138,6 +138,7 @@ func updateScore(roundData *RoundData) {
 }
 
 func readName(conf *Config, conn net.Conn, gameData *GameData) (string, error) {
+	conn.Write(gameData.Clear)
 	conn.Write(gameData.Splash)
 	io := bufio.NewReader(conn)
 	line, err := io.ReadString('\n')
