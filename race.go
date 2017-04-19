@@ -251,25 +251,25 @@ func saveScore(conf *Config, gameData *GameData) error {
 func checkComplexity(roundData *RoundData) {
 	// Checking and updating complexity
 	if roundData.player.Score >= 2000 {
-		roundData.Speed = 50
+		roundData.Speed = 60
 		roundData.BonusFactor = 1
 		roundData.BombFactor = 20
 	} else if roundData.player.Score >= 1500 {
-		roundData.Speed = 60
+		roundData.Speed = 70
 		roundData.BombFactor = 10
 	} else if roundData.player.Score >= 1000 {
-		roundData.Speed = 70
+		roundData.Speed = 80
 		roundData.BombFactor = 5
 	} else if roundData.player.Score >= 600 {
 		roundData.BonusFactor = 100
 		roundData.BombFactor = 2
-		roundData.Speed = 80
+		roundData.Speed = 90
 	} else if roundData.player.Score >= 200 {
 		roundData.BonusFactor = 10
 		roundData.BombFactor = 5
-		roundData.Speed = 90
-	} else if roundData.player.Score >= 50 {
 		roundData.Speed = 100
+	} else if roundData.player.Score >= 50 {
+		roundData.Speed = 150
 	}
 
 }
@@ -304,7 +304,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 
 	roundData.BombFactor = 10
 	roundData.BonusFactor = 10
-	roundData.Speed = 150
+	roundData.Speed = 200
 
 	name, err := readName(conf, conn, gameData)
 	if err != nil {
@@ -394,7 +394,7 @@ func main() {
 	defer l.Close()
 
 	gameData := GameData{}
-	gameData.Roads = generateRoads(3)
+	gameData.Roads = generateRoads(2)
 	gameData.Car, _ = getAcid(conf, "car.txt")
 	gameData.Clear, _ = getAcid(conf, "clear.txt")
 	gameData.Splash, _ = getAcid(conf, "splash.txt")
