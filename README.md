@@ -3,26 +3,26 @@
 
 You will be driving a car and you need to avoid bombs and walls and collect bonuses:
 ```
-237                |                  |
+|                  |                  |
+|                                     |
 |                                     |
 |                  |                  |
 |                                     |
-|   X              |                  |
+|                                     |
+|                  |                  |
+|   X                                 |
 |                                     |
 |                  |                  |
 |                                     |
-|                  |                  |
 |                                     |
-|                  |                  |
-|                                     |
-|               /TTTTTTT\             |
-|             |=|       |=|           |
-|              | \_____/ |            |
-|              | |     | |     $      |
-|              | |_____| |            |
-|             |=|/_____\|=|           |
-|              |IIIIIIIII|            |
-|                                     |
+|                /TTTTTTT\            |
+|              |=|       |=|      $   |
+|               | \_____/ |           |
+|               | |     | |           |
+|               | |_____| |           |
+|              |=|/_____\|=|          |
+|               |IIIIIIIII|           |
+Score: 730              Speed: 131 km/h
 ```
 After you crash you will get the list of TOP players:
 ```
@@ -50,3 +50,5 @@ After you crash you will get the list of TOP players:
 
 # Try it
 `clear && stty -icanon && nc protury.info 4242`
+
+If you want to use a bot, please use "BOT" in the name, that you do not spam top results
