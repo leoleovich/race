@@ -56,30 +56,31 @@ func (p Players) Len() int           { return len(p) }
 func (p Players) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 func (p Players) Less(i, j int) bool { return p[i].Score > p[j].Score }
 
-func generateRoad(reverse bool) []byte {
-	road := make([]byte, road_width*road_lenght)
-	midline := reverse
-	for row := 0; row < road_lenght; row++ {
-		for column := 0; column < road_width; column++ {
-			var symbol byte
-			if column == 0 || column == road_width-2 {
-				symbol = byte('|')
-			} else if column == road_width-1 {
-				symbol = byte('\n')
-			} else if column == road_width/2-1 {
-				if midline {
+func generateRoads(size int) [][]byte {
+	roads := make([][]byte, size)
+	for offset := 0; offset < size; offset++ {
+		roads[offset] = make([]byte, road_width*road_lenght)
+		for row := 0; row < road_lenght; row++ {
+			for column := 0; column < road_width; column++ {
+				var symbol byte
+				if column == 0 || column == road_width-2 {
 					symbol = byte('|')
+				} else if column == road_width-1 {
+					symbol = byte('\n')
+				} else if column == road_width/2-1 {
+					if (row-offset)%size == 0 {
+						symbol = byte('|')
+					} else {
+						symbol = byte(' ')
+					}
 				} else {
 					symbol = byte(' ')
 				}
-				midline = !midline
-			} else {
-				symbol = byte(' ')
+				roads[offset][row*road_width+column] = symbol
 			}
-			road[row*road_width+column] = symbol
 		}
 	}
-	return road
+	return roads
 }
 
 func getAcid(conf *Config, fileName string) ([]byte, error) {
@@ -387,7 +388,7 @@ func main() {
 	defer l.Close()
 
 	gameData := GameData{}
-	gameData.Roads = [][]byte{generateRoad(false), generateRoad(true)}
+	gameData.Roads = generateRoads(3)
 	gameData.Car, _ = getAcid(conf, "car.txt")
 	gameData.Clear, _ = getAcid(conf, "clear.txt")
 	gameData.Splash, _ = getAcid(conf, "splash.txt")
