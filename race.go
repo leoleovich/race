@@ -297,6 +297,19 @@ func checkPosition(conf *Config, conn net.Conn, roundData *RoundData, gameData *
 	return true
 }
 
+func initTelnet(conn net.Conn) error {
+	telnet_options := []byte{
+		255, 253, 34, // IAC DO LINEMODE
+		255, 250, 34, 1, 0, 255, 240, // IAC SB LINEMODE MODE 0 IAC SE
+		255, 251, 1, // IAC WILL ECHO
+	}
+	_, err := conn.Write(telnet_options)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func round(conf *Config, conn net.Conn, gameData *GameData) {
 	defer conn.Close()
 
@@ -315,6 +328,11 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 		return
 	}
 	roundData.player.Name = name
+
+	if initTelnet(conn) != nil {
+		return
+	}
+
 	go updateScore(&roundData)
 	go updatePosition(conn, &roundData.CarPosition)
 
