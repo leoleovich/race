@@ -379,8 +379,8 @@ func main() {
 	conf := &Config{}
 
 	flag.StringVar(&logFile, "l", "/var/log/race.log", "Log file")
-	flag.StringVar(&conf.AcidPath, "a", "/Users/leoleovich/go/src/github.com/leoleovich/race/artifacts", "Artifacts location")
-	flag.StringVar(&conf.ScorePath, "s", "/Users/leoleovich/go/src/github.com/leoleovich/race/artifacts", "Score location")
+	flag.StringVar(&conf.AcidPath, "a", os.Getenv("HOME")+"/go/src/github.com/leoleovich/race/artifacts", "Artifacts location")
+	flag.StringVar(&conf.ScorePath, "s", os.Getenv("HOME")+"go/src/github.com/leoleovich/race/artifacts", "Score location")
 	flag.Parse()
 
 	logfile, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
