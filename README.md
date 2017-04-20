@@ -1,5 +1,5 @@
 # Description
-`clear && stty -icanon && nc localhost 4242`
+`telnet localhost 4242`
 
 You will be driving a car and you need to avoid bombs and walls and collect bonuses:
 ```
