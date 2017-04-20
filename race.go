@@ -105,7 +105,7 @@ func getAcid(conf *Config, fileName string) ([]byte, error) {
 	return acid, nil
 }
 
-func updatePosition(conn net.Conn, position *Point) {
+func updatePosition(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameData) {
 	for {
 		direction := make([]byte, 1)
 
@@ -117,15 +117,19 @@ func updatePosition(conn net.Conn, position *Point) {
 			if err != nil {
 				return
 			}
-			if escpos == 0 && direction[0] == 27 {
+
+			// Check if telnet want to negotiate something
+			if escpos == 0 && direction[0] == 255 {
+				readTelnet(conn)
+			} else if escpos == 0 && direction[0] == 27 {
 				escpos = 1
-				continue
-			}
-			if escpos == 1 && direction[0] == 91 {
+			} else if direction[0] == 3 {
+				gameOver(conf, conn, roundData, gameData)
+				conn.Close()
+				return
+			} else if escpos == 1 && direction[0] == 91 {
 				escpos = 2
-				continue
-			}
-			if escpos == 2 {
+			} else if escpos == 2 {
 				break
 			}
 		}
@@ -133,16 +137,16 @@ func updatePosition(conn net.Conn, position *Point) {
 		switch direction[0] {
 		case 68:
 			// Left
-			position.X--
+			roundData.CarPosition.X--
 		case 67:
 			// Right
-			position.X++
+			roundData.CarPosition.X++
 		case 65:
 			// Up
-			position.Y--
+			roundData.CarPosition.Y--
 		case 66:
 			// Down
-			position.Y++
+			roundData.CarPosition.Y++
 		}
 	}
 }
@@ -316,16 +320,42 @@ func checkPosition(conf *Config, conn net.Conn, roundData *RoundData, gameData *
 }
 
 func initTelnet(conn net.Conn) error {
-	telnet_options := []byte{
+	// https://tools.ietf.org/html/rfc854
+	telnetOptions := []byte{
 		255, 253, 34, // IAC DO LINEMODE
 		255, 250, 34, 1, 0, 255, 240, // IAC SB LINEMODE MODE 0 IAC SE
 		255, 251, 1, // IAC WILL ECHO
 	}
-	_, err := conn.Write(telnet_options)
+	_, err := conn.Write(telnetOptions)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func readTelnet(conn net.Conn) error {
+	// https://tools.ietf.org/html/rfc854
+	reply := make([]byte, 1)
+	bytesRead := 0
+	shortCommand := false
+
+	for {
+		_, err := conn.Read(reply)
+		if err != nil {
+			return err
+		}
+		bytesRead++
+
+		if reply[0] != 250 && bytesRead == 1 {
+			shortCommand = true
+		}
+
+		if shortCommand && bytesRead == 2 {
+			return nil
+		} else if reply[0] == 240 {
+			return nil
+		}
+	}
 }
 
 func round(conf *Config, conn net.Conn, gameData *GameData) {
@@ -352,7 +382,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 	}
 
 	go updateScore(&roundData)
-	go updatePosition(conn, &roundData.CarPosition)
+	go updatePosition(conf, conn, &roundData, gameData)
 
 	for {
 		if !checkPosition(conf, conn, &roundData, gameData) {
