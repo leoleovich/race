@@ -15,11 +15,11 @@ import (
 	"time"
 )
 
-const road_width = 40
+const road_width = 41
 const road_lenght = 20
 const car_width = 14
 const car_lenght = 7
-const result_width = 76
+const result_width = 77
 const max_players_in_top = 10
 const speed_factor = 10500
 
@@ -63,8 +63,10 @@ func generateRoads(size int) [][]byte {
 		for row := 0; row < road_lenght; row++ {
 			for column := 0; column < road_width; column++ {
 				var symbol byte
-				if column == 0 || column == road_width-2 {
+				if column == 0 || column == road_width-3 {
 					symbol = byte('|')
+				} else if column == road_width-2 {
+					symbol = byte('\r')
 				} else if column == road_width-1 {
 					symbol = byte('\n')
 				} else if column == road_width/2-1 {
@@ -107,9 +109,25 @@ func updatePosition(conn net.Conn, position *Point) {
 	for {
 		direction := make([]byte, 1)
 
-		_, err := conn.Read(direction)
-		if err != nil {
-			return
+		// Read all possible bytes and try to find a sequence of:
+		// ESC [ cursor_key
+		escpos := 0
+		for {
+			_, err := conn.Read(direction)
+			if err != nil {
+				return
+			}
+			if escpos == 0 && direction[0] == 27 {
+				escpos = 1
+				continue
+			}
+			if escpos == 1 && direction[0] == 91 {
+				escpos = 2
+				continue
+			}
+			if escpos == 2 {
+				break
+			}
 		}
 
 		switch direction[0] {
@@ -138,6 +156,7 @@ func updateScore(roundData *RoundData) {
 }
 
 func readName(conf *Config, conn net.Conn, gameData *GameData) (string, error) {
+	conn.Write(gameData.Clear)
 	conn.Write(gameData.Splash)
 	io := bufio.NewReader(conn)
 	line, err := io.ReadString('\n')
@@ -145,7 +164,7 @@ func readName(conf *Config, conn net.Conn, gameData *GameData) (string, error) {
 		conf.Log.Println("Error while name reading", err)
 		return "", err
 	}
-	name := strings.Replace(line, "\n", "", -1)
+	name := strings.Replace(line, "\r\n", "", -1)
 	if name == "" {
 		conf.Log.Println("Empty name")
 		return "", errors.New("Empty name")
@@ -203,7 +222,7 @@ func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameD
 	roundData.GameOver[result_width/2] = byte(':')
 	//Name
 	for i, char := range []byte(roundData.player.Name) {
-		roundData.GameOver[result_width-1-len(roundData.player.Name)+i] = byte(char)
+		roundData.GameOver[result_width-2-len(roundData.player.Name)+i] = byte(char)
 	}
 
 	recalculatePlayers(gameData, roundData)
@@ -222,7 +241,7 @@ func gameOver(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameD
 		roundData.GameOver[(2+place)*result_width+result_width/2] = byte(':')
 		//Name
 		for i, char := range []byte(player.Name) {
-			roundData.GameOver[(2+place)*result_width+result_width-1-len(player.Name)+i] = byte(char)
+			roundData.GameOver[(2+place)*result_width+result_width-2-len(player.Name)+i] = byte(char)
 		}
 	}
 
@@ -278,7 +297,7 @@ func checkComplexity(roundData *RoundData) {
 }
 
 func checkPosition(conf *Config, conn net.Conn, roundData *RoundData, gameData *GameData) bool {
-	if roundData.CarPosition.X < 1 || roundData.CarPosition.X > road_width-car_width-1 || roundData.CarPosition.Y < 1 || roundData.CarPosition.Y > road_lenght-car_lenght-1 {
+	if roundData.CarPosition.X < 1 || roundData.CarPosition.X > road_width-1-car_width-1 || roundData.CarPosition.Y < 1 || roundData.CarPosition.Y > road_lenght-car_lenght-1 {
 		// Hit the wall
 		gameOver(conf, conn, roundData, gameData)
 		return false
@@ -294,6 +313,19 @@ func checkPosition(conf *Config, conn net.Conn, roundData *RoundData, gameData *
 		roundData.bonusPosition = Point{road_width, road_lenght}
 	}
 	return true
+}
+
+func initTelnet(conn net.Conn) error {
+	telnet_options := []byte{
+		255, 253, 34, // IAC DO LINEMODE
+		255, 250, 34, 1, 0, 255, 240, // IAC SB LINEMODE MODE 0 IAC SE
+		255, 251, 1, // IAC WILL ECHO
+	}
+	_, err := conn.Write(telnet_options)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func round(conf *Config, conn net.Conn, gameData *GameData) {
@@ -314,6 +346,11 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 		return
 	}
 	roundData.player.Name = name
+
+	if initTelnet(conn) != nil {
+		return
+	}
+
 	go updateScore(&roundData)
 	go updatePosition(conn, &roundData.CarPosition)
 
@@ -340,7 +377,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 				data[roundData.bonusPosition.Y*road_width+roundData.bonusPosition.X] = byte('$')
 				roundData.bonusPosition.Y++
 			} else if rand.Int()%roundData.BonusFactor == 0 {
-				roundData.bonusPosition.X, roundData.bonusPosition.Y = rand.Intn(road_width-3)+1, 0
+				roundData.bonusPosition.X, roundData.bonusPosition.Y = rand.Intn(road_width-4)+1, 0
 			}
 
 			// Applying the bomb
@@ -348,7 +385,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 				data[roundData.bombPosition.Y*road_width+roundData.bombPosition.X] = byte('X')
 				roundData.bombPosition.Y++
 			} else if rand.Int()%roundData.BombFactor == 0 {
-				roundData.bombPosition.X, roundData.bombPosition.Y = rand.Intn(road_width-3)+1, 0
+				roundData.bombPosition.X, roundData.bombPosition.Y = rand.Intn(road_width-4)+1, 0
 			}
 
 			// Applying the Car
@@ -365,7 +402,7 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 			// Applying the speed
 			speedStr := fmt.Sprintf("Speed: %d km/h", speed_factor/roundData.Speed)
 			for i := range speedStr {
-				data[road_lenght*road_width-len(speedStr)-1+i] = byte(speedStr[i])
+				data[road_lenght*road_width-len(speedStr)-2+i] = byte(speedStr[i])
 			}
 
 			_, err = conn.Write(data)
