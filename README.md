@@ -49,6 +49,6 @@ After you crash you will get the list of TOP players:
 ```
 
 # Try it
-`clear && stty -icanon && nc protury.info 4242`
+`telnet nc protury.info 4242`
 
 If you want to use a bot, please use "BOT" in the name, that you do not spam top results
