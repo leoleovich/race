@@ -466,7 +466,7 @@ func main() {
 	gameData := GameData{}
 	gameData.Roads = generateRoads(2)
 	gameData.Car, _ = getAcid(conf, "car.txt")
-	gameData.Clear, _ = getAcid(conf, "clear.txt")
+	gameData.Clear = []byte{27, 91, 50, 74, 27, 91, 72}
 	gameData.Splash, _ = getAcid(conf, "splash.txt")
 	scoreData, _ := getAcid(conf, "score.json")
 	err = json.Unmarshal(scoreData, &gameData.Top)
