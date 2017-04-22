@@ -168,7 +168,7 @@ func readName(conf *Config, conn net.Conn, gameData *GameData) (string, error) {
 		conf.Log.Println("Error while name reading", err)
 		return "", err
 	}
-	name := strings.Replace(line, "\r\n", "", -1)
+	name := strings.Replace(strings.Replace(line, "\n", "", -1), "\r", "", -1)
 	if name == "" {
 		conf.Log.Println("Empty name")
 		return "", errors.New("Empty name")
