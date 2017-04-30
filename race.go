@@ -446,9 +446,11 @@ func round(conf *Config, conn net.Conn, gameData *GameData) {
 
 func main() {
 	var logFile string
+	var port int
 	conf := &Config{}
 
 	flag.StringVar(&logFile, "l", "/var/log/race.log", "Log file")
+	flag.IntVar(&port, "p", 4242, "Port to listen")
 	flag.StringVar(&conf.AcidPath, "a", "/Users/leoleovich/go/src/github.com/leoleovich/race/artifacts", "Artifacts location")
 	flag.StringVar(&conf.ScorePath, "s", "/Users/leoleovich/go/src/github.com/leoleovich/race/artifacts", "Score location")
 	flag.Parse()
@@ -456,7 +458,7 @@ func main() {
 	logfile, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
 	conf.Log = log.New(logfile, "", log.Ldate|log.Lmicroseconds|log.Lshortfile)
 
-	l, err := net.Listen("tcp", ":4242")
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		conf.Log.Println(err)
 		os.Exit(2)
