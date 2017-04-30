@@ -1,5 +1,5 @@
 # Description
-`telnet localhost 4242`
+`telnet localhost 4242` (see see [#Try it](https://github.com/leoleovich/race#try-it) for live demo)
 
 You will be driving a car and you need to avoid bombs and walls and collect bonuses:
 ```
