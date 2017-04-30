@@ -49,6 +49,6 @@ After you crash you will get the list of TOP players:
 ```
 
 # Try it
-`telnet protury.info 4242`
+`telnet protury.info 4243`
 
 If you want to use a bot, please use "BOT" in the name, that you do not spam top results
